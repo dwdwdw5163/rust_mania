@@ -1,0 +1,23 @@
+(undo-tree-save-format-version . 1)
+"f021abbcb4bfc49e0f0a3e4f4b330ad73e56d9f1"
+[nil nil nil nil (25318 35371 654705 168000) 0 nil]
+([nil nil ((182 . 187) (t 25318 35225 631500 344000)) nil (25318 35371 654704 6000) 0 nil])
+([nil nil ((#("o" 0 1 (fontified t)) . -185) (undo-tree-id5 . -1) (#("n" 0 1 (fontified t)) . -186) (undo-tree-id6 . -1) 187) nil (25318 35371 654702 437000) 0 nil])
+([nil nil ((185 . 186)) nil (25318 35371 654699 844000) 0 nil])
+([nil nil ((186 . 188)) nil (25318 35371 654698 825000) 0 nil])
+([nil nil ((188 . 189)) nil (25318 35371 654698 87000) 0 nil])
+([nil nil ((#(" " 0 1 (fontified t)) . -188) (undo-tree-id4 . -1) 189) nil (25318 35371 654697 86000) 0 nil])
+([nil nil ((188 . 194)) nil (25318 35371 654695 467000) 0 nil])
+([nil nil ((194 . 195)) nil (25318 35371 654694 514000) 0 nil])
+([nil nil ((#("	" 0 1 (fontified t)) . -194) (undo-tree-id3 . -1) 195) nil (25318 35371 654693 553000) 0 nil])
+([nil nil ((194 . 195)) nil (25318 35371 654691 694000) 0 nil])
+([nil nil ((197 . 203) (196 . 198) (#("\"" 0 1 (fontified nil)) . -196) (195 . 197)) nil (25318 35371 654690 652000) 0 nil])
+([nil nil ((204 . 205)) nil (25318 35371 654689 303000) 0 nil])
+([nil nil ((205 . 212)) nil (25318 35371 654688 389000) 0 nil])
+([nil nil ((#(" " 0 1 (fontified t)) . -209) (undo-tree-id0 . -1) (#("=" 0 1 (fontified t)) . -210) (undo-tree-id1 . -1) (#(" " 0 1 (fontified t)) . -211) (undo-tree-id2 . -1) 212) nil (25318 35371 654686 426000) 0 nil])
+([nil nil ((211 . 216) (210 . 212) (#("\"" 0 1 (fontified nil)) . -210) (209 . 211)) nil (25318 35371 654671 446000) 0 nil])
+([nil nil ((#("0" 0 1 (fontified t face font-lock-string-face)) . -202) (undo-tree-id9 . -1) 203 (t 25318 35371 668165 399000)) nil (25318 39814 96635 600000) 0 nil])
+([nil nil ((#("93." 0 3 (fontified t face font-lock-string-face)) . -199) (undo-tree-id8 . -3) 202) nil (25318 39814 96632 3000) 0 nil])
+([nil nil ((#("0." 0 2 (fontified t face font-lock-string-face)) . -197) (undo-tree-id7 . -2) 199) nil (25318 39814 96627 251000) 0 nil])
+([nil current ((197 . 198)) nil (25318 39814 96614 887000) 0 nil])
+nil
