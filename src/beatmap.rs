@@ -1,7 +1,11 @@
 use std::fs::File;
 use std::io::{self, BufRead};
 use std::path::Path;
+use lazy_static::lazy_static;
+use regex::Regex;
 
+
+#[derive(Debug)]
 struct HitObject {
     x: u32,
     y: u32,
@@ -12,6 +16,7 @@ struct HitObject {
     hitsample: String,
 }
 
+#[derive(Default)]
 pub struct BeatMap {
     //[General]
     audio_file_name: String,
@@ -35,18 +40,29 @@ pub struct BeatMap {
     //[Hitobjects]
     //https://osu.ppy.sh/wiki/en/Client/File_formats/Osu_%28file_format%29
     //x,y,time,type,hitSound,objectParams,hitSample3
-    hitobjects: Vec<Hitobjects>,
+    hitobjects: Vec<HitObject>,
 }
 
 impl BeatMap {
     pub fn new<P>(filename: P) -> BeatMap
     where P: AsRef<Path>, {
 	let mut state = 0;
+	let mut beatmap = BeatMap::default();
+	lazy_static! {
+            static ref re_keyValue: Regex = Regex::new("(.*):( *)(.*)").unwrap();
+	}
+	
 	if let Ok(lines) = read_lines(filename) {
 	    for line in lines {
-		
+		if let Ok(s) = line {
+		    let temp = re_keyValue.captures(&s);
+		    if let Some(t) = temp {
+			println!("{:?}, {:?}",&t[1],&t[3]);
+		    }
+		}
 	    }
 	}
+	beatmap
     }
 }
 

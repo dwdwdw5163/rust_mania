@@ -1,6 +1,8 @@
 #[allow(no_snake_name)]
 mod app;
 use crate::app::App;
+mod beatmap;
+use crate::beatmap::BeatMap;
 
 extern crate glutin_window;
 extern crate graphics;
@@ -23,7 +25,7 @@ fn main() {
         .exit_on_esc(true)
         .build()
         .unwrap();
-
+    let mut beatmap = BeatMap::new("Team Grimoire - C18H27NO3 ([Shana Lesus]) [Alexey's 4K BASIC].osu");
     // Create a new game and run it.
     // let mut app = App {
     //     gl: GlGraphics::new(opengl),

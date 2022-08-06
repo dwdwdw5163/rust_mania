@@ -11,7 +11,6 @@ use piston::input::{RenderArgs, RenderEvent, UpdateArgs, UpdateEvent};
 use piston::window::WindowSettings;
 
 
-use crate::beatmap::BeatMap;
 
 pub struct App {
     gl: GlGraphics, // OpenGL drawing backend.
