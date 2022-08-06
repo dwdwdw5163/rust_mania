@@ -1,0 +1,7 @@
+use std::io;
+use std::fs;
+
+
+pub struct BeatMap {
+    
+}
