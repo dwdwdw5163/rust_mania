@@ -1,4 +1,4 @@
-#[apply(no_snake_name)]
+#[allow(no_snake_name)]
 mod app;
 use crate::app::App;
 
@@ -25,19 +25,19 @@ fn main() {
         .unwrap();
 
     // Create a new game and run it.
-    let mut app = App {
-        gl: GlGraphics::new(opengl),
-        rotation: 0.0,
-    };
+    // let mut app = App {
+    //     gl: GlGraphics::new(opengl),
+    //     rotation: 0.0,
+    // };
 
-    let mut events = Events::new(EventSettings::new());
-    while let Some(e) = events.next(&mut window) {
-        if let Some(args) = e.render_args() {
-            app.render(&args);
-        }
+    // let mut events = Events::new(EventSettings::new());
+    // while let Some(e) = events.next(&mut window) {
+    //     if let Some(args) = e.render_args() {
+    //         app.render(&args);
+    //     }
 
-        if let Some(args) = e.update_args() {
-            app.update(&args);
-        }
-    }
+    //     if let Some(args) = e.update_args() {
+    //         app.update(&args);
+    //     }
+    // }
 }
