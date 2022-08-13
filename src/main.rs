@@ -15,6 +15,8 @@ use piston::event_loop::{EventSettings, Events};
 use piston::input::{RenderArgs, RenderEvent, UpdateArgs, UpdateEvent};
 use piston::window::WindowSettings;
 use anyhow;
+use std::sync::atomic::AtomicUsize;
+use std::time::{Instant, Duration};
 
 
 use kira::{
@@ -27,6 +29,8 @@ use kira::{
     StartTime, ClockSpeed,
     tween::Tween,
 };
+
+static time_atomic: std::sync::atomic::AtomicUsize = AtomicUsize::new(0);
 
 fn main() -> anyhow::Result<()> {
     // Change this to OpenGL::V2_1 if not working.
@@ -58,11 +62,20 @@ fn main() -> anyhow::Result<()> {
     // 	    std::thread::sleep(std::time::Duration::from_secs(1));
     // 	}
     // });
+    std::thread::spawn(move || {
+	loop {
+	    std::thread::sleep(Duration::from_secs(2));
+	    println!("{:?}",1000.0/time_atomic.load(std::sync::atomic::Ordering::Relaxed) as f64);
+	}
+    });
 
-    
+    let mut timer = Instant::now();
     let mut events = Events::new(EventSettings::new());
     while let Some(e) = events.next(&mut window) {
         if let Some(args) = e.render_args() {
+	    let time_now = Instant::now();
+	    time_atomic.store(time_now.duration_since(timer).as_millis() as usize, std::sync::atomic::Ordering::SeqCst);
+	    timer = Instant::now();
             app.render(&args, clock.time().ticks);
         }
 	
