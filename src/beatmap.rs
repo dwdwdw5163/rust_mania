@@ -3,23 +3,24 @@ use std::io::{self, BufRead};
 use std::path::Path;
 use lazy_static::lazy_static;
 use regex::Regex;
+use anyhow;
 
 
-#[derive(Debug)]
-struct HitObject {
-    x: u32,
+#[derive(Default,Debug)]
+pub struct HitObject {
+    pub x: u32,
     y: u32,
-    time: usize,
-    typ: u8,
+    pub time_ms: u64,
+    pub typ: u8,
     hitsound: u8,
-    objparams: String,
+    pub endtime: u64,
     hitsample: String,
 }
 
-#[derive(Default)]
+#[derive(Default,Debug)]
 pub struct BeatMap {
     //[General]
-    audio_file_name: String,
+    pub audio_file_name: String,
     mode: u16,
     //[Metadata]
     title: String,
@@ -40,7 +41,7 @@ pub struct BeatMap {
     //[Hitobjects]
     //https://osu.ppy.sh/wiki/en/Client/File_formats/Osu_%28file_format%29
     //x,y,time,type,hitSound,objectParams,hitSample3
-    hitobjects: Vec<HitObject>,
+    pub hitobjects: Vec<HitObject>,
 }
 
 impl BeatMap {
@@ -57,7 +58,41 @@ impl BeatMap {
 		if let Ok(s) = line {
 		    let temp = re_keyValue.captures(&s);
 		    if let Some(t) = temp {
-			println!("{:?}, {:?}",&t[1],&t[3]);
+			//println!("{:?}, {:?}",&t[1],&t[3]);
+			match &t[1] {
+			    "AudioFilename" => beatmap.audio_file_name = t[3].to_string(),
+			    "Mode" => beatmap.mode = t[3].to_string().parse().unwrap(),
+			    "Title" => beatmap.title = t[3].to_string(),
+			    "Artist" => beatmap.artist = t[3].to_string(),
+			    "HPDrainRate" => beatmap.hpDrainRate = t[3].to_string().parse().unwrap(),
+			    "CircleeSize" => beatmap.circleSize = t[3].to_string().parse().unwrap(),
+			    "OverallDifficulty" => beatmap.overallDifficulty = t[3].to_string().parse().unwrap(),
+			    "ApproachRate" => beatmap.approachRate = t[3].to_string().parse().unwrap(),
+			    "SliderTickRate" => beatmap.silderTickRate = t[3].to_string().parse().unwrap(),
+		  	    _ => {},	
+			}
+			if &t[3] == "" {
+			    let spilt = s.split(",");
+			    if let (v,Some(_)) = spilt.size_hint() {
+				if v < 2 {
+				    panic!("Error while reading HitObject");
+				}
+			    }
+			    let vec: Vec<&str> = spilt.collect();
+			    let mut hitobj = HitObject::default();
+			    hitobj.x = vec[0].parse().unwrap();
+			    hitobj.y = vec[1].parse().unwrap();
+			    hitobj.time_ms = vec[2].parse().unwrap();
+			    hitobj.typ = vec[3].parse().unwrap();
+			    hitobj.hitsound = vec[4].parse().unwrap();
+			    if hitobj.typ == 128 {
+				let vec1: Vec<&str> = vec[5].split(":").collect();
+				//println!("{:?}",vec1[0]);
+				hitobj.endtime = vec1[0].parse().unwrap();
+			    }
+
+			    beatmap.hitobjects.push(hitobj);
+			}
 		    }
 		}
 	    }
