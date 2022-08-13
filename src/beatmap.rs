@@ -3,11 +3,18 @@ use std::io::{self, BufRead};
 use std::path::Path;
 use lazy_static::lazy_static;
 use regex::Regex;
-use anyhow;
+use core::fmt::Debug;
+use graphics::*;
+use piston::input::{RenderArgs};
+use opengl_graphics::GlGraphics;
+
+pub trait HitObject: Debug {
+    fn draw(&self, time: u64, window_length_ms: u64, args: &RenderArgs, c: Context, gl: &mut GlGraphics);
+}
 
 
 #[derive(Default,Debug)]
-pub struct HitObject {
+pub struct Note {
     pub x: u32,
     y: u32,
     pub time_ms: u64,
@@ -15,6 +22,43 @@ pub struct HitObject {
     hitsound: u8,
     pub endtime: u64,
     hitsample: String,
+}
+
+#[derive(Default,Debug)]
+pub struct LongNote {
+    pub x: u32,
+    y: u32,
+    pub time_ms: u64,
+    pub typ: u8,
+    hitsound: u8,
+    pub endtime: u64,
+    hitsample: String,
+}
+
+impl HitObject for Note {
+    fn draw(&self, time: u64, window_length_ms: u64, args: &RenderArgs, c: Context, gl: &mut GlGraphics) {
+	const GREEN: [f32; 4] = [0.0, 1.0, 0.0, 1.0];
+	let h = args.window_size[1];
+	let win_h: u64 = time + window_length_ms;
+	if (win_h > self.time_ms) && (time < self.time_ms) {
+	    rectangle(GREEN, [self.x as f64+300.,h-(self.time_ms as u64-time) as f64/window_length_ms as f64*h,-64.0,-32.0], c.transform, gl);	
+	}
+    }
+}
+
+impl HitObject for LongNote {
+    fn draw(&self, time: u64, window_length_ms: u64, args: &RenderArgs, c: Context, gl: &mut GlGraphics) {
+	const PINK: [f32; 4] = [0.967, 0.01, 0.58, 0.8];
+	let h = args.window_size[1];
+	let win_h: u64 = time + window_length_ms;
+	if (self.typ == 128) && ((win_h > self.time_ms) || (time < self.endtime)) {
+	    let head: f64 = self.endtime as f64 - win_h as f64;
+	    let tail: f64 = self.time_ms as f64- time as f64;
+	    let y_top: f64 = if head >= 0.0 {0.0} else {-head/window_length_ms as f64*h};
+	    let y_height: f64 = if tail <= 0.0 {h-y_top} else {(h-tail/window_length_ms as f64*h) - y_top};
+	    rectangle(PINK, [self.x as f64+300., y_top, 64.0, y_height], c.transform, gl);
+	}
+    }
 }
 
 #[derive(Default,Debug)]
@@ -41,7 +85,7 @@ pub struct BeatMap {
     //[Hitobjects]
     //https://osu.ppy.sh/wiki/en/Client/File_formats/Osu_%28file_format%29
     //x,y,time,type,hitSound,objectParams,hitSample3
-    pub hitobjects: Vec<HitObject>,
+    pub hitobjects: Vec<Box<dyn HitObject>>,
 }
 
 impl BeatMap {
@@ -79,19 +123,32 @@ impl BeatMap {
 				}
 			    }
 			    let vec: Vec<&str> = spilt.collect();
-			    let mut hitobj = HitObject::default();
-			    hitobj.x = vec[0].parse().unwrap();
-			    hitobj.y = vec[1].parse().unwrap();
-			    hitobj.time_ms = vec[2].parse().unwrap();
-			    hitobj.typ = vec[3].parse().unwrap();
-			    hitobj.hitsound = vec[4].parse().unwrap();
-			    if hitobj.typ == 128 {
+			    if vec[3] == "1" {
+				let mut hitobj = Note::default();
+				hitobj.x = vec[0].parse().unwrap();
+				hitobj.y = vec[1].parse().unwrap();
+				hitobj.time_ms = vec[2].parse().unwrap();
+				hitobj.typ = vec[3].parse().unwrap();
+				hitobj.hitsound = vec[4].parse().unwrap();
 				let vec1: Vec<&str> = vec[5].split(":").collect();
 				//println!("{:?}",vec1[0]);
 				hitobj.endtime = vec1[0].parse().unwrap();
+				beatmap.hitobjects.push(Box::new(hitobj));
+			    }
+			    if vec[3] == "128" {
+				let mut hitobj = LongNote::default();
+				hitobj.x = vec[0].parse().unwrap();
+				hitobj.y = vec[1].parse().unwrap();
+				hitobj.time_ms = vec[2].parse().unwrap();
+				hitobj.typ = vec[3].parse().unwrap();
+				hitobj.hitsound = vec[4].parse().unwrap();
+				let vec1: Vec<&str> = vec[5].split(":").collect();
+				//println!("{:?}",vec1[0]);
+				hitobj.endtime = vec1[0].parse().unwrap();
+				beatmap.hitobjects.push(Box::new(hitobj));
 			    }
 
-			    beatmap.hitobjects.push(hitobj);
+			    
 			}
 		    }
 		}
