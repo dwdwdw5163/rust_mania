@@ -960,12 +960,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "hound"
-version = "3.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8a164bb2ceaeff4f42542bdb847c41517c78a60f5649671b2a07312b6e117549"
-
-[[package]]
 name = "ident_case"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1224,26 +1218,6 @@ name = "minimal-lexical"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "68354c5c6bd36d73ff3feceb05efa59b6acb7626617f4962be322a825e61f79a"
-
-[[package]]
-name = "minimp3"
-version = "0.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "985438f75febf74c392071a975a29641b420dd84431135a6e6db721de4b74372"
-dependencies = [
- "minimp3-sys",
- "slice-deque",
- "thiserror",
-]
-
-[[package]]
-name = "minimp3-sys"
-version = "0.3.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e21c73734c69dc95696c9ed8926a2b393171d98b3f5f5935686a26a487ab9b90"
-dependencies = [
- "cc",
-]
 
 [[package]]
 name = "miniz_oxide"
@@ -1786,24 +1760,25 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",
- "cpal",
- "hound",
+ "gfx",
+ "gfx_device_gl",
+ "image",
  "kira",
  "lazy_static",
- "minimp3",
  "piston",
+ "piston2d-gfx_graphics",
  "piston2d-graphics",
  "piston2d-opengl_graphics",
  "piston_window",
- "pistoncore-glutin_window",
+ "pistoncore-glutin_window 0.69.0",
  "regex",
 ]
 
 [[package]]
 name = "piston_window"
-version = "0.123.0"
+version = "0.124.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0982cde15bf06146d587da262b8091224408855786ff10de7e45a7145e7c714e"
+checksum = "2ac26f53c1726eb60a3e8162cbf295ea31f42d6f3d3a2e2806d07fb540adb602"
 dependencies = [
  "gfx",
  "gfx_device_gl",
@@ -1811,7 +1786,7 @@ dependencies = [
  "piston-texture",
  "piston2d-gfx_graphics",
  "piston2d-graphics",
- "pistoncore-glutin_window",
+ "pistoncore-glutin_window 0.70.1",
  "shader_version",
 ]
 
@@ -1831,6 +1806,19 @@ name = "pistoncore-glutin_window"
 version = "0.69.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "66086130e496d440aba286ba47b7d61e33413208323bec3499bf7975fa72dc2e"
+dependencies = [
+ "gl",
+ "glutin",
+ "pistoncore-input",
+ "pistoncore-window",
+ "shader_version",
+]
+
+[[package]]
+name = "pistoncore-glutin_window"
+version = "0.70.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a2625037feaa575206054a7a10b397739c6c10e81be0ae65858182d6dd906d30"
 dependencies = [
  "gl",
  "glutin",
@@ -2104,17 +2092,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4614a76b2a8be0058caa9dbbaf66d988527d86d003c11a94fbd335d7661edcef"
 dependencies = [
  "autocfg",
-]
-
-[[package]]
-name = "slice-deque"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "31ef6ee280cdefba6d2d0b4b78a84a1c1a3f3a4cec98c2d4231c8bc225de0f25"
-dependencies = [
- "libc",
- "mach",
- "winapi 0.3.9",
 ]
 
 [[package]]

@@ -1,6 +1,7 @@
 use std::fs::File;
 use std::io::{self, BufRead};
 use std::path::Path;
+use gfx_device_gl::CommandBuffer;
 use lazy_static::lazy_static;
 use regex::Regex;
 use core::fmt::Debug;
@@ -8,10 +9,30 @@ use graphics::*;
 use piston::input::{RenderArgs};
 use opengl_graphics::GlGraphics;
 
-pub trait HitObject: Debug {
-    fn draw(&self, time: u64, window_length_ms: u64, args: &RenderArgs, c: Context, gl: &mut GlGraphics);
+use gfx::{traits::*, Encoder, Resources};
+use gfx::format::{DepthStencil, Formatted, Srgba8};
+use gfx::memory::Typed;
+use gfx_graphics::{Flip, Gfx2d, GfxGraphics,};
+
+#[derive(Debug)]
+pub enum HitObject {
+    Note(Note),
+    LongNote(LongNote),
 }
 
+
+pub trait Renderable: Debug {
+    fn draw<G: Graphics>(&self, time: u64, window_length_ms: u64, args: &RenderArgs,c: Context, g: &mut G);
+}
+
+impl Renderable for HitObject {
+    fn draw<G: Graphics>(&self, time: u64, window_length_ms: u64, args: &RenderArgs,c: Context, g: &mut G) {
+	match self {
+	    HitObject::Note(note) => note.draw(time,window_length_ms,args,c,g),
+	    HitObject::LongNote(longnote) => longnote.draw(time,window_length_ms,args,c,g),
+	}
+    }
+}
 
 #[derive(Default,Debug)]
 pub struct Note {
@@ -35,21 +56,20 @@ pub struct LongNote {
     hitsample: String,
 }
 
-impl HitObject for Note {
-    fn draw(&self, time: u64, window_length_ms: u64, args: &RenderArgs, c: Context, gl: &mut GlGraphics) {
+impl Renderable for Note {
+    fn draw<G: Graphics>(&self, time: u64, window_length_ms: u64, args: &RenderArgs, c: Context, g: &mut G) {
 	const GREEN: [f32; 4] = [0.0, 1.0, 0.0, 1.0];
 	let win_h: u64 = time + window_length_ms;
 	if (win_h > self.time_ms) && (time < self.time_ms) {
 	    let h = args.window_size[1]-80.0;
 	    let y: f64 = h-((self.time_ms as u64-time)as f64)/(window_length_ms as f64)*h;
-	    rectangle(GREEN, [self.x as f64+300., y,-64.0,-32.0], c.transform, gl);
-	    //println!("note y: {:?}",y);
+	    rectangle(GREEN, [self.x as f64+300., y,-64.0,-32.0], c.transform, g);
+	    
 	}
     }
 }
-
-impl HitObject for LongNote {
-    fn draw(&self, time: u64, window_length_ms: u64, args: &RenderArgs, c: Context, gl: &mut GlGraphics) {
+impl Renderable for LongNote {
+    fn draw<G: Graphics>(&self, time: u64, window_length_ms: u64, args: &RenderArgs, c: Context, g: &mut G) {
 	const PINK: [f32; 4] = [0.967, 0.01, 0.58, 0.8];
 	let win_h: u64 = time + window_length_ms;
 	if (self.typ == 128) && (win_h > self.time_ms) && (time < self.endtime) {
@@ -58,7 +78,8 @@ impl HitObject for LongNote {
 	    let tail: f64 = self.time_ms as f64- time as f64;
 	    let y_top: f64 = if head >= 0.0 {0.0} else {-head/(window_length_ms as f64)*h};
 	    let y_height: f64 = if tail <= 0.0 {h-y_top} else {(h-tail/(window_length_ms as f64)*h) - y_top};
-	    rectangle(PINK, [self.x as f64+300., y_top, 64.0, y_height], c.transform, gl);
+	    rectangle(PINK, [self.x as f64+300., y_top, 64.0, y_height], c.transform, g);
+	    //Some([self.x as f64, y_top, 64.0, y_height])
 	}
     }
 }
@@ -87,7 +108,7 @@ pub struct BeatMap {
     //[Hitobjects]
     //https://osu.ppy.sh/wiki/en/Client/File_formats/Osu_%28file_format%29
     //x,y,time,type,hitSound,objectParams,hitSample3
-    pub hitobjects: Vec<Box<dyn HitObject>>,
+    pub hitobjects: Vec<Box<HitObject>>,
 }
 
 impl BeatMap {
@@ -135,7 +156,7 @@ impl BeatMap {
 				let vec1: Vec<&str> = vec[5].split(":").collect();
 				//println!("{:?}",vec1[0]);
 				hitobj.endtime = vec1[0].parse().unwrap();
-				beatmap.hitobjects.push(Box::new(hitobj));
+				beatmap.hitobjects.push(Box::new(HitObject::Note(hitobj)));
 			    }
 			    if vec[3] == "128" {
 				let mut hitobj = LongNote::default();
@@ -147,10 +168,9 @@ impl BeatMap {
 				let vec1: Vec<&str> = vec[5].split(":").collect();
 				//println!("{:?}",vec1[0]);
 				hitobj.endtime = vec1[0].parse().unwrap();
-				beatmap.hitobjects.push(Box::new(hitobj));
+				beatmap.hitobjects.push(Box::new(HitObject::LongNote(hitobj)));
 			    }
-
-			    
+			  
 			}
 		    }
 		}
