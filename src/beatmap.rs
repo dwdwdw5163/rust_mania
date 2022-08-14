@@ -38,10 +38,12 @@ pub struct LongNote {
 impl HitObject for Note {
     fn draw(&self, time: u64, window_length_ms: u64, args: &RenderArgs, c: Context, gl: &mut GlGraphics) {
 	const GREEN: [f32; 4] = [0.0, 1.0, 0.0, 1.0];
-	let h = args.window_size[1];
 	let win_h: u64 = time + window_length_ms;
 	if (win_h > self.time_ms) && (time < self.time_ms) {
-	    rectangle(GREEN, [self.x as f64+300.,h-(self.time_ms as u64-time) as f64/window_length_ms as f64*h,-64.0,-32.0], c.transform, gl);	
+	    let h = args.window_size[1]-80.0;
+	    let y: f64 = h-((self.time_ms as u64-time)as f64)/(window_length_ms as f64)*h;
+	    rectangle(GREEN, [self.x as f64+300., y,-64.0,-32.0], c.transform, gl);
+	    //println!("note y: {:?}",y);
 	}
     }
 }
@@ -49,13 +51,13 @@ impl HitObject for Note {
 impl HitObject for LongNote {
     fn draw(&self, time: u64, window_length_ms: u64, args: &RenderArgs, c: Context, gl: &mut GlGraphics) {
 	const PINK: [f32; 4] = [0.967, 0.01, 0.58, 0.8];
-	let h = args.window_size[1];
 	let win_h: u64 = time + window_length_ms;
-	if (self.typ == 128) && ((win_h > self.time_ms) || (time < self.endtime)) {
+	if (self.typ == 128) && (win_h > self.time_ms) && (time < self.endtime) {
+	    let h = args.window_size[1]-80.0;
 	    let head: f64 = self.endtime as f64 - win_h as f64;
 	    let tail: f64 = self.time_ms as f64- time as f64;
-	    let y_top: f64 = if head >= 0.0 {0.0} else {-head/window_length_ms as f64*h};
-	    let y_height: f64 = if tail <= 0.0 {h-y_top} else {(h-tail/window_length_ms as f64*h) - y_top};
+	    let y_top: f64 = if head >= 0.0 {0.0} else {-head/(window_length_ms as f64)*h};
+	    let y_height: f64 = if tail <= 0.0 {h-y_top} else {(h-tail/(window_length_ms as f64)*h) - y_top};
 	    rectangle(PINK, [self.x as f64+300., y_top, 64.0, y_height], c.transform, gl);
 	}
     }
