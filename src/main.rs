@@ -1,4 +1,4 @@
-#[allow(no_snake_name)]
+#[allow(non_snake_case)]
 mod app;
 use crate::app::App;
 mod beatmap;
@@ -38,15 +38,15 @@ static MAX_FPS: u64 = 144;
 
 fn main() -> anyhow::Result<()> {
     // Change this to OpenGL::V2_1 if not working.
-    let opengl = OpenGL::V3_2;
+    let opengl = OpenGL::V4_5;
 
     // Create a Glutin window.
     let mut windowSettings = WindowSettings::new("spinning-square", [1920, 1080]);
     windowSettings.set_fullscreen(true);
+    windowSettings.set_samples(4);
     let mut window: Window = windowSettings
         .graphics_api(opengl)
         .exit_on_esc(true)
-       // .vsync(true)
         .build()
         .unwrap();
     
@@ -60,9 +60,9 @@ fn main() -> anyhow::Result<()> {
     let mut manager = AudioManager::<CpalBackend>::new(AudioManagerSettings::default())?;
     let sound_data = StaticSoundData::from_file(app.beatmap.audio_file_name.clone(), StaticSoundSettings::default())?;
     let track = manager.add_sub_track(TrackBuilder::default())?;
-    let mut clock = manager.add_clock(ClockSpeed::TicksPerSecond(1000.0))?;
+    let clock = manager.add_clock(ClockSpeed::TicksPerSecond(1000.0))?;
     let hitsound_data = StaticSoundData::from_file("normal-hitnormal.ogg", StaticSoundSettings::default().track(&track).volume(0.2))?;
-    clock.start();
+    clock.start()?;
     println!("{:?}", sound_data.duration());
     let mut sound = manager.play(sound_data.clone())?;
     sound.set_volume(0.2,Tween::default());
@@ -80,7 +80,8 @@ fn main() -> anyhow::Result<()> {
     });
 
     let mut timer = Instant::now();
-    let mut events = Events::new(EventSettings{ups:1, ..EventSettings::default()});
+    let mut events = Events::new(EventSettings{bench_mode:false
+					       , max_fps:MAX_FPS, ups:1, ..EventSettings::default()});
     while let Some(e) = events.next(&mut window) {
         if let Some(args) = e.render_args() {
 	    let time_now = Instant::now();
