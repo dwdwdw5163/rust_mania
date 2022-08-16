@@ -9,11 +9,6 @@ use graphics::*;
 use piston::input::{RenderArgs};
 use opengl_graphics::GlGraphics;
 
-use gfx::{traits::*, Encoder, Resources};
-use gfx::format::{DepthStencil, Formatted, Srgba8};
-use gfx::memory::Typed;
-use gfx_graphics::{Flip, Gfx2d, GfxGraphics,};
-
 #[derive(Debug)]
 pub enum HitObject {
     Note(Note),
