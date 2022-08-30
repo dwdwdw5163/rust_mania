@@ -17,11 +17,11 @@ pub enum HitObject {
 
 
 pub trait Renderable: Debug {
-    fn draw<G: Graphics>(&self, time: u64, window_length_ms: u64, args: &RenderArgs,c: Context, g: &mut G);
+    fn draw<G: Graphics>(&self, time: u64, window_length_ms: u64, args: &RenderArgs,c: &Context, g: &mut G);
 }
 
 impl Renderable for HitObject {
-    fn draw<G: Graphics>(&self, time: u64, window_length_ms: u64, args: &RenderArgs,c: Context, g: &mut G) {
+    fn draw<G: Graphics>(&self, time: u64, window_length_ms: u64, args: &RenderArgs,c: &Context, g: &mut G) {
 	match self {
 	    HitObject::Note(note) => note.draw(time,window_length_ms,args,c,g),
 	    HitObject::LongNote(longnote) => longnote.draw(time,window_length_ms,args,c,g),
@@ -52,7 +52,7 @@ pub struct LongNote {
 }
 
 impl Renderable for Note {
-    fn draw<G: Graphics>(&self, time: u64, window_length_ms: u64, args: &RenderArgs, c: Context, g: &mut G) {
+    fn draw<G: Graphics>(&self, time: u64, window_length_ms: u64, args: &RenderArgs, c: &Context, g: &mut G) {
 	const GREEN: [f32; 4] = [0.0, 1.0, 0.0, 1.0];
 	let win_h: u64 = time + window_length_ms;
 	if (win_h > self.time_ms) && (time < self.time_ms) {
@@ -64,7 +64,7 @@ impl Renderable for Note {
     }
 }
 impl Renderable for LongNote {
-    fn draw<G: Graphics>(&self, time: u64, window_length_ms: u64, args: &RenderArgs, c: Context, g: &mut G) {
+    fn draw<G: Graphics>(&self, time: u64, window_length_ms: u64, args: &RenderArgs, c: &Context, g: &mut G) {
 	const PINK: [f32; 4] = [0.967, 0.01, 0.58, 0.8];
 	let win_h: u64 = time + window_length_ms;
 	if (self.typ == 128) && (win_h > self.time_ms) && (time < self.endtime) {
@@ -103,7 +103,7 @@ pub struct BeatMap {
     //[Hitobjects]
     //https://osu.ppy.sh/wiki/en/Client/File_formats/Osu_%28file_format%29
     //x,y,time,type,hitSound,objectParams,hitSample3
-    pub hitobjects: Vec<Box<HitObject>>,
+    pub hitobjects: Vec<HitObject>,
 }
 
 impl BeatMap {
@@ -151,7 +151,7 @@ impl BeatMap {
 				let vec1: Vec<&str> = vec[5].split(":").collect();
 				//println!("{:?}",vec1[0]);
 				hitobj.endtime = vec1[0].parse().unwrap();
-				beatmap.hitobjects.push(Box::new(HitObject::Note(hitobj)));
+				beatmap.hitobjects.push(HitObject::Note(hitobj));
 			    }
 			    if vec[3] == "128" {
 				let mut hitobj = LongNote::default();
@@ -163,7 +163,7 @@ impl BeatMap {
 				let vec1: Vec<&str> = vec[5].split(":").collect();
 				//println!("{:?}",vec1[0]);
 				hitobj.endtime = vec1[0].parse().unwrap();
-				beatmap.hitobjects.push(Box::new(HitObject::LongNote(hitobj)));
+				beatmap.hitobjects.push(HitObject::LongNote(hitobj));
 			    }
 			  
 			}

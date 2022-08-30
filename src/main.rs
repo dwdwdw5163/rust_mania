@@ -10,7 +10,6 @@ extern crate opengl_graphics;
 extern crate piston;
 
 
-use gfx::handle::Texture;
 use gfx_graphics::TextureSettings;
 use glutin_window::GlutinWindow as Window;
 use graphics::Graphics;
@@ -20,7 +19,6 @@ use piston::event_loop::{EventSettings, Events};
 use piston::input::{RenderArgs, RenderEvent, UpdateArgs, UpdateEvent};
 use piston::window::WindowSettings;
 use anyhow;
-use piston_window::GfxFactory;
 use std::sync::atomic::AtomicUsize;
 use std::time::{Instant, Duration};
 
@@ -72,7 +70,7 @@ fn main() -> anyhow::Result<()> {
     let mut manager = AudioManager::<CpalBackend>::new(AudioManagerSettings::default())?;
     let sound_data = StaticSoundData::from_file(beatmap.audio_file_name.clone(), StaticSoundSettings::default())?;
     let track = manager.add_sub_track(TrackBuilder::default())?;
-    let clock = manager.add_clock(ClockSpeed::TicksPerSecond(1000.0))?;
+    let clock = manager.add_clock(ClockSpeed::SecondsPerTick(0.001))?;
     let hitsound_data = StaticSoundData::from_file("normal-hitnormal.ogg", StaticSoundSettings::default().track(&track).volume(0.2))?;
     clock.start()?;
     println!("{:?}", sound_data.duration());
@@ -82,8 +80,9 @@ fn main() -> anyhow::Result<()> {
     //print debug
     std::thread::spawn(move || {
 	loop {
-	    std::thread::sleep(Duration::from_millis(1000));
-	    println!("{:?}",1000.0/time_atomic.load(std::sync::atomic::Ordering::Relaxed) as f64);
+	    std::thread::sleep(Duration::from_millis(10));
+	    //println!("{:?}",1000.0/time_atomic.load(std::sync::atomic::Ordering::Relaxed) as f64);
+	    
 	}
     });
 
@@ -92,24 +91,28 @@ fn main() -> anyhow::Result<()> {
     let mut events = Events::new(EventSettings{bench_mode:false, max_fps:MAX_FPS, ups:1, ..EventSettings::default()});
 
     let bg = <GlGraphics as Graphics>::Texture::from_path("IMG_1297.JPG", &TextureSettings::new()).unwrap();
+    let bg_image = graphics::Image::new().rect([0.0,0.0,1920.0,1080.0]);
+    let mut ticks = clock.time().ticks;
     //event Loop
     while let Some(e) = events.next(&mut window) {
         if let Some(args) = e.render_args() {
 	    let time_now = Instant::now();
-	    time_atomic.store(time_now.duration_since(timer).as_millis() as usize, std::sync::atomic::Ordering::SeqCst);
-	    timer = Instant::now();
+	    //time_atomic.store(time_now.duration_since(timer).as_millis() as usize, std::sync::atomic::Ordering::Relaxed);
+	    //timer = Instant::now();
 	    gl.draw(args.viewport(), |c, gl| {
 		use graphics::*;
 		clear([0.0, 0.0, 0.0, 1.0], gl);			
-		Image::new().rect([0.0,0.0,1920.0,1080.0]).draw(&bg, &c.draw_state, c.transform, gl);
+		bg_image.draw(&bg, &c.draw_state, c.transform, gl);
 		let (w, h) = (args.window_size[0], args.window_size[1]);
 		
 		const RED: [f32; 4] = [1.0, 0.0, 0.0, 1.0];
 		
 		// Draw components.
+		ticks = clock.time().ticks;
+		println!("{:?}",ticks);
 		line(RED, 3.0, [0.0,h-80.0,w,h-80.0],c.transform, gl);
 		for component in beatmap.hitobjects.iter() {
-		    component.draw(clock.time().ticks, WINDOW_LENGTH_MS, &args,c, gl);		    
+		    component.draw(time_now.duration_since(timer).as_millis() as u64, WINDOW_LENGTH_MS, &args, &c, gl);		    
 		}
 	    });
 	    
