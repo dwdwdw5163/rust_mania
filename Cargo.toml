@@ -1,0 +1,16 @@
+[package]
+name = "cpal_trial"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+log = "0.4.0"
+env_logger = "0.8.4"
+color-eyre = "0.6.1"
+anyhow = "1.0"
+cpal = "0.14.0"
+dasp = {version = "0.11.0", features = ["signal", "interpolate", "interpolate-linear"]}
+symphonia = {version = "0.5.0", features = ["isomp4", "mp3", "aac"] }
+indicatif = "0.17.0"
