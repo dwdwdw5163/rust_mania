@@ -1,6 +1,7 @@
 use cpal::{default_host, Stream};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use dasp::{interpolate::linear::Linear, signal, Signal};
+use rustfft::num_complex::Complex32;
 use std::sync::atomic::Ordering;
 use std::fs::File;
 use std::path::Path;
@@ -17,13 +18,21 @@ use color_eyre::eyre::{eyre, Result};
 
 use indicatif::ProgressBar;
 
-
+use clap::Parser;
 use std::sync::atomic::AtomicU64;
 
+use rustfft::{FftPlanner, num_complex::Complex};
 
-
-
+const BUFFER_LEN: usize = 1024;
 static TIME_MS: AtomicU64 = AtomicU64::new(0);
+
+#[derive(Parser, Debug, Default)]
+#[clap(author, version, about, long_about = None)]
+struct Args {
+   /// audio path
+   #[clap(short, long, value_parser)]
+   path: String,
+}
 
 
 struct PlaybackState {
@@ -40,6 +49,7 @@ type PlaybackStateHandle = Arc<Mutex<Option<PlaybackState>>>;
 pub struct PlayHandle {
     _stream: Stream,
     state: PlaybackStateHandle,
+    buffer: Arc<Mutex<[Complex32;BUFFER_LEN]>>,
 }
 
 impl PlayHandle {
@@ -89,7 +99,7 @@ impl AudioClip {
                 .take(self.samples.len() * (sample_rate as usize) / (self.sample_rate as usize))
                 .collect(),
             sample_rate,
-        }
+	}
     }
 
     pub fn import(name: String, path: String) -> Result<AudioClip> {
@@ -144,7 +154,7 @@ impl AudioClip {
                 .codec_params
                 .sample_rate
                 .ok_or_else(|| eyre!("Unknown sample rate"))?,
-        };
+	};
 
         loop {
             // Get the next packet from the format reader.
@@ -228,13 +238,16 @@ impl AudioClip {
 	let state = PlaybackState {
             time: 0,
             samples: self.resample(sample_rate).samples,
-            done_cbs: vec![],
+	    done_cbs: vec![],
             changed_cbs: vec![],
             changed_cbs_triggered_at: 0,
             sample_rate: sample_rate as usize,
         };
         let state: PlaybackStateHandle = Arc::new(Mutex::new(Some(state)));
         let state_2 = state.clone();
+
+	let buffer = Arc::new(Mutex::new([Complex32{re:0.0,im:0.0};BUFFER_LEN]));
+	let buffer_2 = buffer.clone();
 	
         let channels = config.channels();
 
@@ -242,18 +255,25 @@ impl AudioClip {
             log::error!("an error occurred on stream: {}", err);
         };
 
-        fn write_output_data<T>(output: &mut [T], channels: u16, writer: &PlaybackStateHandle)
+        fn write_output_data<T>(output: &mut [T], channels: u16, writer: &PlaybackStateHandle, buffer: &Arc<Mutex<[Complex32;BUFFER_LEN]>>)
         where
             T: cpal::Sample,
         {
             if let Ok(mut guard) = writer.try_lock() {
                 if let Some(state) = guard.as_mut() {
+		    let mut buffer_guard = buffer.try_lock();
                     for frame in output.chunks_mut(channels.into()) {
                         for sample in frame.iter_mut() {
 			    *sample =
                                 cpal::Sample::from(state.samples.get(state.time).unwrap_or(&0f32));
                         }
-			AtomicU64::fetch_add(&TIME_MS,1,Ordering::Relaxed);
+			if let Ok(ref mut buf_guard) = buffer_guard {
+			    if state.time < buf_guard.len() {
+				buf_guard[state.time] = Complex32{ re: *state.samples.get(state.time).unwrap_or(&0f32), im:0.0};
+			    }
+			    AtomicU64::fetch_add(&TIME_MS,1,Ordering::Relaxed);
+			}
+			//AtomicU64::fetch_add(&TIME_MS,1,Ordering::Relaxed);
                         state.time += 1;
                     }
                     if state.time >= state.samples.len() {
@@ -274,17 +294,17 @@ impl AudioClip {
         let stream = match config.sample_format() {
             cpal::SampleFormat::F32 => device.build_output_stream(
                 &config.into(),
-                move |data, _: &_| write_output_data::<f32>(data, channels, &state),
+                move |data, _: &_| write_output_data::<f32>(data, channels, &state, &buffer),
                 err_fn,
             )?,
             cpal::SampleFormat::I16 => device.build_output_stream(
                 &config.into(),
-                move |data, _: &_| write_output_data::<i16>(data, channels, &state),
+                move |data, _: &_| write_output_data::<i16>(data, channels, &state, &buffer),
                 err_fn,
             )?,
             cpal::SampleFormat::U16 => device.build_output_stream(
                 &config.into(),
-                move |data, _: &_| write_output_data::<u16>(data, channels, &state),
+                move |data, _: &_| write_output_data::<u16>(data, channels, &state, &buffer),
                 err_fn,
             )?,
         };
@@ -294,6 +314,7 @@ impl AudioClip {
         Ok(PlayHandle {
             _stream: stream,
             state: state_2,
+	    buffer: buffer_2,
         })
     }
 
@@ -301,9 +322,19 @@ impl AudioClip {
 
 
 fn main() -> Result<()> {
+
+    let args = Args::parse();
+    let path = args.path;
+
+    //fftplanner
+    
+    
     println!("begin import");
+    //let clip: AudioClip =
+	//AudioClip::import(String::from("test"), String::from("/home/zhang/Downloads/YOUTH - Live Fast, Die Young.mp3"))?;
     let clip: AudioClip =
-	AudioClip::import(String::from("test"), String::from("/home/zhang/Downloads/YOUTH - Live Fast, Die Young.mp3"))?;
+	AudioClip::import(String::from("test"), path)?;
+    
     let sample_rate = clip.sample_rate as f64;
     let duration = clip.samples.len() as f64/(clip.sample_rate as f64);
     println!("finished import and play");
@@ -312,6 +343,21 @@ fn main() -> Result<()> {
     handle.connect_done(move || {
 	done_tx.send(()).unwrap();
     });
+
+    std::thread::spawn(move ||{
+	let mut planner = FftPlanner::new();
+	let fft = planner.plan_fft_forward(BUFFER_LEN);
+	let buffer = handle.buffer;
+	loop {
+	    let mut buf = buffer.lock().unwrap();
+	    fft.process(&mut *buf);
+	    //println!("fft process once");
+	    drop(buf);
+	    std::thread::sleep(std::time::Duration::from_millis(8));
+	}
+	
+    });
+
     
     let bar = ProgressBar::new(duration as u64);
     std::thread::spawn(move || {
