@@ -15,3 +15,12 @@ symphonia = {version = "0.5.0", features = ["isomp4", "mp3", "aac"] }
 indicatif = "0.17.0"
 clap = { version = "3.2.20", features = ["derive"] }
 rustfft = "6.0.1"
+
+regex = "1"
+lazy_static = "*"
+
+piston = "0.53.1"
+piston2d-graphics = "0.42.0"
+piston_window = "0.124.0"
+pistoncore-glutin_window = "0.69.0"
+piston2d-opengl_graphics = "0.81.0"

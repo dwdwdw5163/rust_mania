@@ -2,11 +2,14 @@ use cpal::{default_host, Stream};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use dasp::{interpolate::linear::Linear, signal, Signal};
 use rustfft::num_complex::Complex32;
+use rustfft::num_traits::Pow;
+use std::ops::Deref;
 use std::sync::atomic::Ordering;
 use std::fs::File;
 use std::path::Path;
-use std::sync::mpsc::channel;
+use std::sync::mpsc::{channel, self};
 use std::sync::{Arc, Mutex};
+use std::usize;
 use symphonia::core::audio::SampleBuffer;
 use symphonia::core::codecs::DecoderOptions;
 use symphonia::core::errors::Error;
@@ -21,17 +24,34 @@ use indicatif::ProgressBar;
 use clap::Parser;
 use std::sync::atomic::AtomicU64;
 
+use glutin_window::GlutinWindow as Window;
+use graphics::Graphics;
+use opengl_graphics::{GlGraphics, OpenGL, Texture, TextureSettings};
+use piston::{PressEvent, OpenGLWindow};
+use piston::event_loop::{EventSettings, Events};
+use piston::input::{RenderArgs, RenderEvent, UpdateArgs, UpdateEvent};
+use piston::window::WindowSettings;
+
 use rustfft::{FftPlanner, num_complex::Complex};
 
-const BUFFER_LEN: usize = 1024;
+
+mod beatmap;
+use crate::beatmap::{BeatMap,Renderable};
+
+const BUFFER_LEN: usize = 4096;
 static TIME_MS: AtomicU64 = AtomicU64::new(0);
+
+static tick: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Parser, Debug, Default)]
 #[clap(author, version, about, long_about = None)]
 struct Args {
-   /// audio path
-   #[clap(short, long, value_parser)]
-   path: String,
+    /// audio path
+    #[clap(short, long, value_parser)]
+    audio_path: String,
+    /// .osu path
+    #[clap(short, long, value_parser)]
+    osu_path: String,
 }
 
 
@@ -46,10 +66,10 @@ struct PlaybackState {
 
 type PlaybackStateHandle = Arc<Mutex<Option<PlaybackState>>>;
 
+
 pub struct PlayHandle {
     _stream: Stream,
     state: PlaybackStateHandle,
-    buffer: Arc<Mutex<[Complex32;BUFFER_LEN]>>,
 }
 
 impl PlayHandle {
@@ -246,8 +266,6 @@ impl AudioClip {
         let state: PlaybackStateHandle = Arc::new(Mutex::new(Some(state)));
         let state_2 = state.clone();
 
-	let buffer = Arc::new(Mutex::new([Complex32{re:0.0,im:0.0};BUFFER_LEN]));
-	let buffer_2 = buffer.clone();
 	
         let channels = config.channels();
 
@@ -255,25 +273,19 @@ impl AudioClip {
             log::error!("an error occurred on stream: {}", err);
         };
 
-        fn write_output_data<T>(output: &mut [T], channels: u16, writer: &PlaybackStateHandle, buffer: &Arc<Mutex<[Complex32;BUFFER_LEN]>>)
+        fn write_output_data<T>(output: &mut [T], channels: u16, writer: &PlaybackStateHandle)
         where
             T: cpal::Sample,
         {
             if let Ok(mut guard) = writer.try_lock() {
                 if let Some(state) = guard.as_mut() {
-		    let mut buffer_guard = buffer.try_lock();
+		    
                     for frame in output.chunks_mut(channels.into()) {
                         for sample in frame.iter_mut() {
 			    *sample =
                                 cpal::Sample::from(state.samples.get(state.time).unwrap_or(&0f32));
                         }
-			if let Ok(ref mut buf_guard) = buffer_guard {
-			    if state.time < buf_guard.len() {
-				buf_guard[state.time] = Complex32{ re: *state.samples.get(state.time).unwrap_or(&0f32), im:0.0};
-			    }
-			    AtomicU64::fetch_add(&TIME_MS,1,Ordering::Relaxed);
-			}
-			//AtomicU64::fetch_add(&TIME_MS,1,Ordering::Relaxed);
+			AtomicU64::fetch_add(&TIME_MS,1,Ordering::Relaxed);
                         state.time += 1;
                     }
                     if state.time >= state.samples.len() {
@@ -294,17 +306,17 @@ impl AudioClip {
         let stream = match config.sample_format() {
             cpal::SampleFormat::F32 => device.build_output_stream(
                 &config.into(),
-                move |data, _: &_| write_output_data::<f32>(data, channels, &state, &buffer),
+                move |data, _: &_| write_output_data::<f32>(data, channels, &state),
                 err_fn,
             )?,
             cpal::SampleFormat::I16 => device.build_output_stream(
                 &config.into(),
-                move |data, _: &_| write_output_data::<i16>(data, channels, &state, &buffer),
+                move |data, _: &_| write_output_data::<i16>(data, channels, &state),
                 err_fn,
             )?,
             cpal::SampleFormat::U16 => device.build_output_stream(
                 &config.into(),
-                move |data, _: &_| write_output_data::<u16>(data, channels, &state, &buffer),
+                move |data, _: &_| write_output_data::<u16>(data, channels, &state),
                 err_fn,
             )?,
         };
@@ -314,17 +326,21 @@ impl AudioClip {
         Ok(PlayHandle {
             _stream: stream,
             state: state_2,
-	    buffer: buffer_2,
-        })
+	})
     }
 
 }
 
+fn hann_window<const N: usize>(buffer: &mut [Complex32;N]) {
+    for (i, v) in buffer.iter_mut().enumerate() {
+	v.re = v.re*0.5*(1.0 - f32::cos(2.0*i as f32/(N-1) as f32 * std::f32::consts::PI));
+    }
+}
 
 fn main() -> Result<()> {
 
     let args = Args::parse();
-    let path = args.path;
+    let path = args.audio_path;
 
     //fftplanner
     
@@ -344,31 +360,136 @@ fn main() -> Result<()> {
 	done_tx.send(()).unwrap();
     });
 
+    let mut bar_bin: Vec<ProgressBar> = Vec::new();
+    for _ in 0..16 {
+	bar_bin.push(ProgressBar::new(500));
+    }
+
+    let (tx,rx) = mpsc::channel::<[u64;BUFFER_LEN/2]>();
+    
     std::thread::spawn(move ||{
 	let mut planner = FftPlanner::new();
 	let fft = planner.plan_fft_forward(BUFFER_LEN);
-	let buffer = handle.buffer;
+	let mut timer = std::time::Instant::now();
+	let handle_guard = handle.state.lock().unwrap();
+	let samples = handle_guard.as_ref().unwrap().samples.clone();
+	drop(handle_guard);
+	let mut buf = [Complex32{re:0.0,im:0.0};BUFFER_LEN];
 	loop {
-	    let mut buf = buffer.lock().unwrap();
-	    fft.process(&mut *buf);
+	    let mut fft_amp = [0;BUFFER_LEN/2];
+	    let time_now = std::time::Instant::now();
+	    let time = time_now.duration_since(timer);
+	    tick.store(time.as_millis() as u64, Ordering::Relaxed);
+	    //timer = time_now;
+	    //println!("time {:?}",time.as_secs_f32());
+
+	    for (i,v) in buf.iter_mut().enumerate() {
+		if let Some(val) = samples.get((i as f64+time.as_secs_f64() * sample_rate) as usize) {
+		    *v = Complex32{re:*val,im:0.0};
+		    //println!("{:?}",val);
+		}
+	    }
+	    //println!("{:?}",&buf[0..16]);
+	    hann_window(&mut buf);
+	    //println!("{:?}",&buf[0..16]);
+	    fft.process(&mut buf);
 	    //println!("fft process once");
+	    
+	    for i in 0..BUFFER_LEN/2 {
+		fft_amp[i] = buf[i].norm_sqr() as u64;
+	    }
+	    let mut max = fft_amp.iter().max().unwrap();
+	    if *max == 0 {
+		max = &1;
+	    }
+	    fft_amp = fft_amp.map(|x| x*800/max.deref());
 	    drop(buf);
-	    std::thread::sleep(std::time::Duration::from_millis(8));
+
+	    //println!("{:?}", fft_amp);
+	    tx.send(fft_amp).unwrap();
+	    
+
+	    std::thread::sleep(std::time::Duration::from_millis(4));
 	}
 	
     });
 
     
-    let bar = ProgressBar::new(duration as u64);
+    
     std::thread::spawn(move || {
 	loop {
 	    //println!("sec: {:?}sec",AtomicU64::load(&TIME_MS, Ordering::Relaxed) as f64/sample_rate);
-	    std::thread::sleep(std::time::Duration::from_millis(100));
-	    bar.set_position((AtomicU64::load(&TIME_MS,Ordering::Relaxed) as f64/sample_rate as f64) as u64);
+	    std::thread::sleep(std::time::Duration::from_millis(16));
+	    //bar.set_position((AtomicU64::load(&TIME_MS,Ordering::Relaxed) as f64/sample_rate as f64) as u64);
 	}
     });
+
     
-    done_rx.recv()?;
+    let opengl = OpenGL::V3_2;
+
+    let beatmap = BeatMap::new(args.osu_path);
+
+    let mut windowSettings = WindowSettings::new("fft", [1920,1080]);
+    let mut window: Window = windowSettings
+        .graphics_api(opengl)
+        .exit_on_esc(true)
+        .build()
+        .unwrap();
+
+    let mut gl = GlGraphics::new(opengl);
+
+    let mut events = Events::new(EventSettings{max_fps:144, ups:0,..EventSettings::default()});
+    
+    //Create the image object and attach a square Rectangle object inside.
+    use graphics::*;
+    let image   = Image::new().rect([0.0,0.0,1920.0,1080.0]);
+    //A texture to use with the image
+    let texture = Texture::from_path(Path::new("/home/zhang/Pictures/Wallpapers/crop.png"), &TextureSettings::new()).unwrap();
+    
+    while let Some(e) = events.next(&mut window) {
+	if let  Ok(_) = done_rx.try_recv() {
+	    break;
+	}
+	if let Some(args) = e.render_args() {
+	    gl.draw(args.viewport(), |c, gl| {
+		use graphics::*;
+		clear([0.0,0.0,0.0,1.0], gl);
+
+		//image(&texture, [[1.0/3263.0*2.0,0.0,-1.0],[0.0,-1.0/1835.0*2.0,1.0]], gl);
+				
+		let (w, h) = (args.window_size[0], args.window_size[1]);
+		
+		const COLOR: [f32; 4] = [0.0, 0.8, 0.0, 1.0];
+		let buffer = rx.recv().unwrap();
+
+		for (i,val) in buffer.iter().enumerate() {
+		    rectangle(COLOR,[w/buffer.len() as f64*i as f64*20.0,3.0*h/4.0,w/buffer.len() as f64*10.0,(*val as f64+1.0).sqrt()*-8.0],c.transform,gl);
+		    
+		}
+		let length = buffer.len();
+		for i in 0..(length/20) as usize {
+		    line([1.0,0.0,0.0,1.0], 2.0, [w/length as f64*i as f64*20.0, (buffer[i] as f64+1.0).sqrt()*-8.0 + 3.0*h/4.0, w/length as f64*(i+1) as f64*20.0, (buffer[i+1] as f64+1.0).sqrt()*-8.0+h*3.0/4.0], c.transform, gl);
+		    
+		}
+
+		for component in beatmap.hitobjects.iter() {
+		    component.draw(tick.load(Ordering::Relaxed), 500, &args, &c, gl);		    
+		}
+		line([1.0,1.0,1.0,1.0], 3.0, [0.0,h-80.0,w,h-80.0],c.transform, gl);
+		
+		rectangle(COLOR,[64.0+300.0,h,64.0,-80.0],c.transform,gl);
+		rectangle(COLOR,[192.0+300.0,h,64.0,-80.0],c.transform,gl);
+		rectangle(COLOR,[320.0+300.0,h,64.0,-80.0],c.transform,gl);
+		rectangle(COLOR,[448.0+300.0,h,64.0,-80.0],c.transform,gl);
+		
+		
+	    });
+	    
+	}
+    }
+    
+    
+    //done_rx.recv()?;
     println!("done");
     Ok(())
 }
